@@ -1,0 +1,42 @@
+@import "tailwindcss";
+
+/* DRINKAT design tokens: Turquoise + Orange + White */
+@theme {
+  --color-brand: #0aa5a8;
+  --color-brand-dark: #07797c;
+  --color-brand-light: #e3f6f6;
+  --color-accent: #f26a1b;
+  --color-accent-dark: #d4550d;
+  --color-accent-light: #fff1e8;
+  --color-ink: #1d2b36;
+  --color-muted: #6b7a86;
+  --color-surface: #f4f6f8;
+  --color-line: #e6eaee;
+  --font-sans: var(--font-tajawal), system-ui, sans-serif;
+  --radius-card: 1.25rem;
+}
+
+html, body {
+  background: #ffffff;
+  color: var(--color-ink);
+  -webkit-tap-highlight-color: transparent;
+}
+
+body { overscroll-behavior-y: none; }
+
+.no-scrollbar { scrollbar-width: none; }
+.no-scrollbar::-webkit-scrollbar { display: none; }
+
+/* Reusable component classes (Tailwind v4 @utility so they can be composed) */
+@utility btn {
+  @apply inline-flex items-center justify-center gap-2 rounded-2xl font-bold transition active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none;
+}
+@utility btn-primary { @apply btn bg-accent text-white h-14 px-6 text-lg shadow-lg shadow-accent/25 hover:bg-accent-dark; }
+@utility btn-brand { @apply btn bg-brand text-white h-12 px-5 hover:bg-brand-dark; }
+@utility btn-outline { @apply btn border-2 border-brand text-brand h-12 px-5 bg-white hover:bg-brand-light; }
+@utility btn-ghost { @apply btn bg-surface text-ink h-12 px-5 hover:bg-line; }
+@utility card { @apply rounded-[var(--radius-card)] bg-white border border-line; }
+@utility input {
+  @apply w-full h-12 rounded-xl border border-line bg-white px-4 text-base outline-none focus:border-brand focus:ring-2 focus:ring-brand/20;
+}
+@utility label { @apply block text-sm font-bold mb-1.5; }
