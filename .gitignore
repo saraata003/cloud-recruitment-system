@@ -41,12 +41,8 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# DRINKAT Recruitment - local data
+# DRINKAT Recruitment - local data (database + uploaded photos/CVs)
 /data/
-/public/uploads/photos/*
-/public/uploads/cvs/*
-!/public/uploads/photos/.gitkeep
-!/public/uploads/cvs/.gitkeep
 *.db
 *.db-journal
 *.db-wal

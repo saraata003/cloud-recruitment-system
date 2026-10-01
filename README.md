@@ -73,13 +73,29 @@ src/
     validation.ts            # zod schemas
 ```
 
-Uploaded photos/CVs are stored under `public/uploads/` (gitignored) and served statically — no object storage service required for this scale. `data/` (the SQLite file) is also gitignored; run `npm run db:migrate && npm run db:seed` after cloning to recreate it.
+Uploaded photos/CVs are stored under `data/uploads/` (gitignored) and served through a small dynamic route (`app/uploads/[...path]`) rather than Next's static `public/` folder — Next.js's production server only serves files that existed under `public/` at build time, so anything saved there at runtime would 404 once deployed. `data/` (the SQLite file + uploads) is gitignored; run `npm run db:migrate && npm run db:seed` after cloning to recreate it.
 
 ## Design notes
 
 - Candidate photos are the primary visual anchor everywhere — a person without a photo shows a colored initials avatar as a placeholder, never a blank silhouette.
 - The AI never rates appearance and never makes the hire/reject call — it only summarizes and suggests; the recruiter decides everything.
 - Re-applications never create a second profile: the existing candidate record is updated in place, the previous answers are kept as a snapshot, and the recruiter is shown a duplicate-applicant notice with full history intact.
+
+## Deploying online
+
+This app needs a host that runs a normal, always-on Node server with a persistent disk — not a serverless platform like Vercel, since it keeps its own SQLite database and uploaded files on disk rather than using an external database/storage service. **Railway** is a good fit and has a straightforward GitHub-based deploy flow:
+
+1. Create a Railway account and connect your GitHub.
+2. **New Project → Deploy from GitHub repo** → pick this repository and the branch with the app on it.
+3. Railway auto-detects it as a Node/Next.js app (`npm install`, `npm run build`, `npm run start`) — no extra config needed.
+4. Add a **Volume** to the service (Railway's dashboard: service → *Volumes* → *New Volume*) with mount path `/data`.
+5. Add one environment variable: `STORAGE_DIR=/data`. (Everything else in [`.env.example`](./.env.example) is optional.)
+6. Deploy. On boot, the app automatically creates the database on that volume and runs migrations (`scripts/start-production.sh`) — the database and every uploaded photo/CV now live on the volume, so they survive restarts and redeploys.
+7. Railway gives you a public `*.up.railway.app` URL — share `<that-url>/apply` with candidates and use `<that-url>/dashboard` yourself.
+
+If you want the ~20 sample candidates for a first look, run `npm run db:seed` once from Railway's shell/command feature after the first deploy — skip it if you'd rather start empty and let real applicants fill it in.
+
+**Before sharing the dashboard URL widely**: it currently has no login, by design, to keep the brief's "no complexity" request — only the public `/apply` form was asked to be login-free. Candidate names, phone numbers, and photos are real personal data, so treat the dashboard link as private (don't post it publicly) until you add the lightweight auth gate mentioned below.
 
 ## Suggested next steps
 

@@ -1,5 +1,6 @@
 import fs from "node:fs/promises";
 import path from "node:path";
+import { getUploadsDir } from "./storage-paths";
 
 const MAX_CHARS = 6000;
 
@@ -14,7 +15,8 @@ export async function extractCvText(cvUrl: string | null | undefined): Promise<s
 
   let parser: { getText: () => Promise<{ text: string }>; destroy: () => Promise<void> } | null = null;
   try {
-    const filePath = path.join(process.cwd(), "public", cvUrl);
+    const relativePath = cvUrl.replace(/^\/uploads\//, "");
+    const filePath = path.join(getUploadsDir(), relativePath);
     const buffer = await fs.readFile(filePath);
     const { PDFParse } = await import("pdf-parse");
     parser = new PDFParse({ data: buffer });

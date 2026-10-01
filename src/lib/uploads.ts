@@ -1,5 +1,6 @@
 import fs from "node:fs/promises";
 import path from "node:path";
+import { getUploadsDir } from "./storage-paths";
 
 const MAX_UPLOAD_MB = Number(process.env.MAX_UPLOAD_MB || 8);
 const MAX_UPLOAD_BYTES = MAX_UPLOAD_MB * 1024 * 1024;
@@ -31,9 +32,12 @@ async function saveFile(file: File, kind: "photos" | "cvs", allowedTypes: Set<st
 
   const ext = EXT_BY_TYPE[file.type] || "bin";
   const uniqueName = `${crypto.randomUUID()}.${ext}`;
-  const dir = path.join(process.cwd(), "public", "uploads", kind);
+  const dir = path.join(getUploadsDir(), kind);
   await fs.mkdir(dir, { recursive: true });
-  const filePath = path.join(dir, uniqueName);
+  // STORAGE_DIR is only known at runtime, so Turbopack can't trace this path
+  // statically — harmless here since this app deploys as a normal server,
+  // not a size-limited serverless function bundle.
+  const filePath = path.join(/* turbopackIgnore: true */ dir, uniqueName);
 
   const buffer = Buffer.from(await file.arrayBuffer());
   await fs.writeFile(filePath, buffer);
