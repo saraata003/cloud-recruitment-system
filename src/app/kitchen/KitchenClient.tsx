@@ -115,9 +115,7 @@ export function KitchenClient({ initialStoreStatus }: { initialStoreStatus: Stor
                 </div>
                 <div className="text-end text-sm">
                   <p className="font-bold flex items-center gap-1 justify-end"><Clock size={14} />{time(o.created_at)}</p>
-                  <p className="text-muted mt-1">
-                    {o.payment_method === "cash" ? "💵 كاش" : o.payment_status === "paid" ? "✅ مدفوع" : "غير مدفوع"}
-                  </p>
+                  <PaymentBadge order={o} />
                   <p className="font-bold mt-1" dir="ltr">{jd(o.total)}</p>
                 </div>
               </div>
@@ -131,6 +129,21 @@ export function KitchenClient({ initialStoreStatus }: { initialStoreStatus: Stor
                   </li>
                 ))}
               </ul>
+
+              {o.payment_method === "cliq" && o.payment_status === "pending" && (
+                <div className="mt-3 rounded-xl bg-amber-50 border border-amber-200 p-3 flex items-center gap-2">
+                  <p className="flex-1 text-sm font-bold text-amber-800">
+                    تحقق من وصول تحويل CliQ بقيمة <span dir="ltr">{jd(o.total)}</span> وبملاحظة <span dir="ltr">{o.pickup_number}</span>
+                  </p>
+                  <button
+                    disabled={disabled}
+                    onClick={() => act(o.id, { action: "confirm_payment" })}
+                    className="btn h-11 px-3 bg-amber-500 text-white text-sm shrink-0"
+                  >
+                    وصل التحويل ✓
+                  </button>
+                </div>
+              )}
 
               <div className="mt-4">
                 {o.status === "pending" && (
@@ -152,7 +165,19 @@ export function KitchenClient({ initialStoreStatus }: { initialStoreStatus: Stor
                   </>
                 )}
                 {o.status === "ready" && (
-                  <button disabled={disabled} onClick={() => act(o.id, { action: "picked_up" })} className="btn-brand w-full h-16 text-xl">Picked Up</button>
+                  <button
+                    disabled={disabled}
+                    onClick={() => {
+                      if (o.payment_status !== "paid") {
+                        const what = o.payment_method === "cash" ? `استلمت ${jd(o.total)} كاش؟` : "التحويل لسا ما تأكّد. استلمت المبلغ؟";
+                        if (!confirm(what)) return;
+                      }
+                      act(o.id, { action: "picked_up" });
+                    }}
+                    className="btn-brand w-full h-16 text-xl"
+                  >
+                    Picked Up{o.payment_status !== "paid" && <span className="text-base font-bold" dir="ltr"> · {jd(o.total)}</span>}
+                  </button>
                 )}
               </div>
             </article>
@@ -184,4 +209,14 @@ export function KitchenClient({ initialStoreStatus }: { initialStoreStatus: Stor
       )}
     </div>
   );
+}
+
+function PaymentBadge({ order: o }: { order: Order }) {
+  const [text, cls] =
+    o.payment_status === "paid"
+      ? [o.payment_method === "card" ? "✅ مدفوع بالبطاقة" : o.payment_method === "cliq" ? "✅ CliQ وصل" : "✅ مدفوع", "bg-green-50 text-green-700"]
+      : o.payment_method === "cliq"
+        ? ["⏳ CliQ بانتظار التحويل", "bg-amber-50 text-amber-800"]
+        : ["💵 كاش عند الاستلام", "bg-surface text-ink"];
+  return <p className={`inline-block mt-1 rounded-full px-2.5 py-0.5 text-xs font-bold ${cls}`}>{text}</p>;
 }

@@ -9,7 +9,12 @@ export type OrderStatus =
 export type StoreStatus = "open" | "busy" | "very_busy" | "paused";
 
 export type PaymentMethod = "card" | "cliq" | "cash";
-export type PaymentStatus = "unpaid" | "paid" | "failed";
+/**
+ * unpaid  – cash, paid at the counter
+ * pending – waiting for a CliQ transfer to be confirmed by staff
+ * paid    – card charged / CliQ confirmed / cash collected
+ */
+export type PaymentStatus = "unpaid" | "pending" | "paid" | "failed";
 
 export interface Category {
   id: string;
@@ -41,6 +46,8 @@ export interface Settings {
   store_name: string;
   pickup_location: string;
   default_prep_minutes: number;
+  cliq_alias: string; // shown to the customer for CliQ transfers
+  cliq_name: string; // account name the customer should see in their bank app
 }
 
 export interface OrderItemAddon {
@@ -90,6 +97,10 @@ export interface NewOrderInput {
   customer_name: string;
   customer_phone: string;
   payment_method: PaymentMethod;
+  /** Card token from the payment form (card data itself never reaches our server). */
+  payment_token?: string;
+  /** Random id per checkout attempt – a retry or double tap never creates a second order. */
+  idempotency_key?: string;
   items: {
     product_id: string;
     quantity: number;

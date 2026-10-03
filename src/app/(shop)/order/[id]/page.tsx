@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { use, useEffect, useRef, useState } from "react";
-import { Bell, Check, Clock, Flame } from "lucide-react";
+import { Bell, Check, Clock, Copy, Flame, Zap } from "lucide-react";
 import { PageHeader } from "@/components/PageHeader";
 import { jd, minutesLeft, time } from "@/lib/format";
 import type { Order, OrderStatus } from "@/lib/types";
@@ -24,8 +24,10 @@ export default function TrackOrder({ params }: { params: Promise<{ id: string }>
   const [missing, setMissing] = useState(false);
   const [toast, setToast] = useState("");
   const [canAsk, setCanAsk] = useState(false);
+  const [cliq, setCliq] = useState<{ alias: string; name: string } | null>(null);
   const [, tick] = useState(0);
   const last = useRef<OrderStatus | null>(null);
+  const lastPay = useRef<string | null>(null);
 
   useEffect(() => {
     let stop = false;
@@ -33,8 +35,12 @@ export default function TrackOrder({ params }: { params: Promise<{ id: string }>
       try {
         const res = await fetch(`/api/orders/${id}`, { cache: "no-store" });
         if (res.status === 404) return setMissing(true);
-        const { order } = (await res.json()) as { order: Order };
+        const data = (await res.json()) as { order: Order; cliq?: { alias: string; name: string } };
+        const order = data.order;
         if (stop) return;
+        if (data.cliq) setCliq(data.cliq);
+        if (lastPay.current === "pending" && order.payment_status === "paid") setToast("وصل التحويل، شكراً!");
+        lastPay.current = order.payment_status;
         if (last.current && last.current !== order.status) {
           const msg =
             order.status === "preparing" ? "تم قبول طلبك وجاري التحضير" :
@@ -144,6 +150,10 @@ export default function TrackOrder({ params }: { params: Promise<{ id: string }>
         </section>
       )}
 
+      {order.payment_method === "cliq" && order.payment_status === "pending" && s !== "rejected" && s !== "picked_up" && cliq && (
+        <CliqCard alias={cliq.alias} name={cliq.name} amount={order.total} reference={order.pickup_number} />
+      )}
+
       {s !== "rejected" && (
         <ol className="mx-5 mt-6 space-y-0">
           <Step done label="تم إرسال الطلب" at={order.created_at} />
@@ -175,7 +185,14 @@ export default function TrackOrder({ params }: { params: Promise<{ id: string }>
           ))}
         </ul>
         <p className="mt-3 text-xs text-muted">
-          {order.payment_method === "cash" ? "الدفع عند الاستلام" : order.payment_status === "paid" ? "مدفوع" : "غير مدفوع"} · {time(order.created_at)}
+          {order.payment_status === "paid"
+            ? "مدفوع ✓"
+            : order.payment_method === "cash"
+              ? "الدفع عند الاستلام"
+              : order.payment_method === "cliq"
+                ? "CliQ – بانتظار وصول التحويل"
+                : "غير مدفوع"}{" "}
+          · {time(order.created_at)}
         </p>
       </details>
 
@@ -207,5 +224,57 @@ function Step({
         {at && <p className="text-xs text-muted">{time(at)}</p>}
       </div>
     </li>
+  );
+}
+
+/** CliQ transfer instructions: everything the customer needs, one tap to copy each. */
+function CliqCard({ alias, name, amount, reference }: { alias: string; name: string; amount: number; reference: number }) {
+  const [copied, setCopied] = useState<string | null>(null);
+  const copy = async (key: string, text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch {
+      return;
+    }
+    setCopied(key);
+    setTimeout(() => setCopied((c) => (c === key ? null : c)), 1500);
+  };
+  const rows = [
+    { key: "alias", label: "CliQ Alias", value: alias, copyText: alias },
+    { key: "amount", label: "المبلغ", value: jd(amount), copyText: amount.toFixed(3) },
+    { key: "ref", label: "اكتب بالملاحظات", value: String(reference), copyText: String(reference) },
+  ];
+  return (
+    <section className="mx-5 mt-6 rounded-3xl border-2 border-brand bg-brand-light/60 p-4">
+      <div className="flex items-center gap-2">
+        <span className="w-9 h-9 rounded-xl bg-brand text-white flex items-center justify-center"><Zap size={18} /></span>
+        <div className="flex-1">
+          <p className="font-extrabold">حوّل المبلغ بـ CliQ</p>
+          <p className="text-xs text-muted">باسم {name}. افتح تطبيق بنكك والصق</p>
+        </div>
+        <span className="flex items-center gap-1 text-xs font-bold text-accent-dark">
+          <span className="w-2 h-2 rounded-full bg-accent animate-pulse" /> بانتظار التحويل
+        </span>
+      </div>
+      <ul className="mt-3 space-y-2">
+        {rows.map((r) => (
+          <li key={r.key}>
+            <button
+              onClick={() => copy(r.key, r.copyText)}
+              className="w-full flex items-center gap-3 rounded-2xl bg-white px-4 py-3 text-start active:scale-[0.99] transition"
+            >
+              <span className="flex-1">
+                <span className="block text-xs text-muted">{r.label}</span>
+                <span className="block font-extrabold text-lg" dir="ltr" style={{ textAlign: "right" }}>{r.value}</span>
+              </span>
+              <span className={`text-sm font-bold flex items-center gap-1 ${copied === r.key ? "text-green-600" : "text-brand"}`}>
+                {copied === r.key ? <><Check size={16} /> تم النسخ</> : <><Copy size={16} /> نسخ</>}
+              </span>
+            </button>
+          </li>
+        ))}
+      </ul>
+      <p className="mt-3 text-xs text-muted">الفرع بيبدأ التحضير فوراً، وبيتأكد من وصول التحويل قبل التسليم.</p>
+    </section>
   );
 }

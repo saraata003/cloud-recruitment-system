@@ -15,7 +15,7 @@ export function handler<A extends unknown[]>(
       if (opts.staff && !(await isStaff())) return json({ error: "غير مصرح" }, 401);
       return await fn(...args);
     } catch (e) {
-      if (e instanceof UserError) return json({ error: e.message }, 400);
+      if (e instanceof UserError) return json({ error: e.message, code: e.code, data: e.data }, 400);
       console.error(e);
       return json({ error: "حدث خطأ، حاول مرة أخرى" }, 500);
     }

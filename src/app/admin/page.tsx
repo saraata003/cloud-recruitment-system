@@ -14,7 +14,7 @@ export default async function AdminPage() {
       products={listProducts()}
       categories={listCategories()}
       addons={listAddons()}
-      storeStatus={getSettings().store_status}
+      settings={getSettings()}
     />
   );
 }

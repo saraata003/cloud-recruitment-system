@@ -52,6 +52,8 @@ export const DEFAULT_SETTINGS: Record<string, string> = {
   pickup_location: "DRINKAT Cloud Kitchen",
   default_prep_minutes: "15",
   next_pickup_number: "101",
+  cliq_alias: "DRINKAT",
+  cliq_name: "DRINKAT Cloud Kitchen",
 };
 
 export function seed(conn: DatabaseSync) {

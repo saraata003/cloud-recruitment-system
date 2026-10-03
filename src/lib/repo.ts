@@ -23,6 +23,8 @@ export function getSettings(): Settings {
     store_name: m.store_name,
     pickup_location: m.pickup_location,
     default_prep_minutes: Number(m.default_prep_minutes),
+    cliq_alias: m.cliq_alias,
+    cliq_name: m.cliq_name,
   };
 }
 
@@ -120,8 +122,15 @@ export function deleteAddon(id: string) {
 
 /* ---------------- orders ---------------- */
 
-/** Errors whose message is safe to show to the user. */
-export class UserError extends Error {}
+/**
+ * Errors whose message is safe to show to the user.
+ * `code` lets the UI react (e.g. show the "out of stock" sheet), `data` carries details.
+ */
+export class UserError extends Error {
+  constructor(message: string, public code?: string, public data?: unknown) {
+    super(message);
+  }
+}
 
 export function getOrder(id: string): Order | null {
   const r = db().prepare("SELECT * FROM orders WHERE id = ?").get(id) as Row | undefined;
@@ -170,10 +179,18 @@ function hydrate(rows: Row[]): Order[] {
 export function priceCart(input: NewOrderInput["items"]) {
   if (!Array.isArray(input) || input.length === 0) throw new UserError("السلة فارغة");
   const allAddons = new Map(listAddons().map((a) => [a.id, a]));
+
+  // Report every sold-out product at once so the customer can drop them in one tap.
+  const unavailable = [...new Set(input.map((l) => l.product_id))].filter((id) => {
+    const p = getProduct(id);
+    return !p || !p.is_available;
+  });
+  if (unavailable.length > 0) {
+    throw new UserError("في منتج خلص هلأ", "unavailable", { product_ids: unavailable });
+  }
+
   const lines = input.map((line) => {
-    const p = getProduct(line.product_id);
-    if (!p) throw new UserError("أحد المنتجات لم يعد موجوداً");
-    if (!p.is_available) throw new UserError(`${p.name_ar} غير متوفر حالياً`);
+    const p = getProduct(line.product_id)!;
     const qty = Math.floor(Number(line.quantity));
     if (!(qty >= 1 && qty <= 50)) throw new UserError("الكمية غير صحيحة");
     const addons = (line.addon_ids || []).map((id) => {
@@ -194,6 +211,7 @@ export function insertOrder(args: {
   priced: ReturnType<typeof priceCart>;
   payment_status: string;
   payment_ref: string | null;
+  idempotency_key: string | null;
 }): Order {
   const { id, input, priced } = args;
   tx(() => {
@@ -205,10 +223,10 @@ export function insertOrder(args: {
     const t = now();
     conn.prepare(`
       INSERT INTO orders (id, pickup_number, customer_name, customer_phone, status, total, payment_method,
-        payment_status, payment_ref, created_at, updated_at)
-      VALUES (?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?, ?)
+        payment_status, payment_ref, idempotency_key, created_at, updated_at)
+      VALUES (?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?, ?, ?)
     `).run(id, pickup, input.customer_name, input.customer_phone, priced.total, input.payment_method,
-      args.payment_status, args.payment_ref, t, t);
+      args.payment_status, args.payment_ref, args.idempotency_key, t, t);
     const ins = conn.prepare(
       "INSERT INTO order_items (order_id, product_id, name, unit_price, quantity, addons, notes) VALUES (?, ?, ?, ?, ?, ?, ?)",
     );
@@ -251,6 +269,16 @@ export function setOrderStatus(
     conn.prepare("INSERT INTO order_status_history (order_id, status, created_at) VALUES (?, ?, ?)").run(id, status, t);
   });
   return getOrder(id)!;
+}
+
+export function findOrderByIdempotencyKey(key: string): Order | null {
+  const r = db().prepare("SELECT id FROM orders WHERE idempotency_key = ?").get(key) as { id: string } | undefined;
+  return r ? getOrder(r.id) : null;
+}
+
+export function setPaymentStatus(id: string, status: "paid" | "pending" | "unpaid", ref?: string) {
+  db().prepare("UPDATE orders SET payment_status = ?, payment_ref = COALESCE(?, payment_ref), updated_at = ? WHERE id = ?")
+    .run(status, ref ?? null, now(), id);
 }
 
 export function setFoodicsId(id: string, foodicsId: string) {

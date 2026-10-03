@@ -55,6 +55,7 @@ CREATE TABLE IF NOT EXISTS orders (
   ready_eta TEXT,
   foodics_order_id TEXT,
   reject_reason TEXT,
+  idempotency_key TEXT,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
@@ -94,10 +95,18 @@ export function db(): DatabaseSync {
   const conn = new DatabaseSync(path.join(/*turbopackIgnore: true*/ DATA_DIR, "drinkat.db"));
   conn.exec("PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000;");
   conn.exec(SCHEMA);
+  migrate(conn);
   const count = conn.prepare("SELECT COUNT(*) AS n FROM categories").get() as { n: number };
   if (count.n === 0) seed(conn);
   g.__drinkatDb = conn;
   return conn;
+}
+
+/** Small additive migrations for databases created by older versions. */
+function migrate(conn: DatabaseSync) {
+  const cols = (conn.prepare("PRAGMA table_info(orders)").all() as { name: string }[]).map((c) => c.name);
+  if (!cols.includes("idempotency_key")) conn.exec("ALTER TABLE orders ADD COLUMN idempotency_key TEXT");
+  conn.exec("CREATE UNIQUE INDEX IF NOT EXISTS orders_idempotency_idx ON orders(idempotency_key)");
 }
 
 /** Run several statements atomically. */

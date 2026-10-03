@@ -8,9 +8,9 @@ import { ProductImage } from "@/components/ProductImage";
 import { StoreStatusControl } from "@/components/StoreStatusControl";
 import { categoryEmoji, isImageUrl } from "@/lib/category-emoji";
 import { jd } from "@/lib/format";
-import type { Addon, Category, Product, StoreStatus } from "@/lib/types";
+import type { Addon, Category, Product, Settings } from "@/lib/types";
 
-type Tab = "products" | "categories" | "addons";
+type Tab = "products" | "categories" | "addons" | "settings";
 
 async function api(path: string, method: string, body?: unknown) {
   const res = await fetch(path, {
@@ -24,8 +24,8 @@ async function api(path: string, method: string, body?: unknown) {
 }
 
 export function AdminClient({
-  products, categories, addons, storeStatus,
-}: { products: Product[]; categories: Category[]; addons: Addon[]; storeStatus: StoreStatus }) {
+  products, categories, addons, settings,
+}: { products: Product[]; categories: Category[]; addons: Addon[]; settings: Settings }) {
   const router = useRouter();
   const [tab, setTab] = useState<Tab>("products");
   const [filter, setFilter] = useState("all");
@@ -50,12 +50,12 @@ export function AdminClient({
       <header className="sticky top-0 z-20 bg-brand text-white">
         <div className="max-w-3xl mx-auto px-4 py-3 flex items-center gap-3 flex-wrap">
           <h1 className="text-xl font-extrabold">إدارة المنيو</h1>
-          <div className="flex-1 min-w-0"><StoreStatusControl initial={storeStatus} /></div>
+          <div className="flex-1 min-w-0"><StoreStatusControl initial={settings.store_status} /></div>
           <Link href="/kitchen" aria-label="المطبخ" className="w-9 h-9 rounded-full bg-white/15 flex items-center justify-center"><ChefHat size={18} /></Link>
           <button onClick={logout} aria-label="خروج" className="w-9 h-9 rounded-full bg-white/15 flex items-center justify-center"><LogOut size={18} /></button>
         </div>
-        <nav className="max-w-3xl mx-auto grid grid-cols-3">
-          {([["products", "المنتجات"], ["categories", "الأقسام"], ["addons", "الإضافات"]] as [Tab, string][]).map(([id, label]) => (
+        <nav className="max-w-3xl mx-auto grid grid-cols-4">
+          {([["products", "المنتجات"], ["categories", "الأقسام"], ["addons", "الإضافات"], ["settings", "الدفع"]] as [Tab, string][]).map(([id, label]) => (
             <button key={id} onClick={() => setTab(id)} className={`py-3 font-bold border-b-4 ${tab === id ? "border-accent" : "border-transparent text-white/75"}`}>
               {label}
             </button>
@@ -111,6 +111,7 @@ export function AdminClient({
 
         {tab === "categories" && <CategoriesTab categories={categories} run={run} />}
         {tab === "addons" && <AddonsTab addons={addons} categories={categories} run={run} />}
+        {tab === "settings" && <SettingsTab settings={settings} run={run} />}
       </main>
 
       {editing && (
@@ -304,5 +305,36 @@ function AddonsTab({ addons, categories, run }: { addons: Addon[]; categories: C
         ))}
       </ul>
     </>
+  );
+}
+
+function SettingsTab({ settings, run }: { settings: Settings; run: (fn: () => Promise<unknown>) => void }) {
+  const [alias, setAlias] = useState(settings.cliq_alias);
+  const [name, setName] = useState(settings.cliq_name);
+  const [saved, setSaved] = useState(false);
+  return (
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        run(async () => {
+          await api("/api/admin/settings", "POST", { cliq_alias: alias, cliq_name: name });
+          setSaved(true);
+          setTimeout(() => setSaved(false), 2000);
+        });
+      }}
+      className="card p-4 space-y-3"
+    >
+      <h2 className="font-extrabold">CliQ</h2>
+      <p className="text-sm text-muted">هذا ما يراه الزبون ليحوّل المبلغ. رقم الطلب يُضاف تلقائياً كملاحظة التحويل.</p>
+      <div>
+        <label className="label">CliQ Alias</label>
+        <input className="input" dir="ltr" required value={alias} onChange={(e) => setAlias(e.target.value)} />
+      </div>
+      <div>
+        <label className="label">اسم صاحب الحساب</label>
+        <input className="input" value={name} onChange={(e) => setName(e.target.value)} />
+      </div>
+      <button className="btn-brand w-full">{saved ? "تم الحفظ ✓" : "حفظ"}</button>
+    </form>
   );
 }
